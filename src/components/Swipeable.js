@@ -1,25 +1,33 @@
+// @jsx css
 // @flow
 import React, { Children, cloneElement, Component, type ElementType } from 'react';
 import { findDOMNode } from 'react-dom';
+import css from 'glam';
 
 const THRESHOLD = 150;
-const RESTRAINT = 100;
-const ALLOWED_TIME = 1000;
+const RESTRAINT = Math.round(THRESHOLD * 0.66);
 
-const Surface = ({ innerRef, ...props }) => <div ref={innerRef} style={{
+const Div = ({ innerRef, ...props }) => <div ref={innerRef} {...props} />;
+
+const Container = props => <Div css={{
   overflow: 'hidden',
   touchAction: 'pan-y',
   userSelect: 'none',
 }} {...props} />;
-const Frame = ({ innerRef, style, ...props }) => <div ref={innerRef} style={{
+const Track = props => <Div css={{
+  display: 'block',
+  left: 0,
+  position: 'relative',
+  top: 0,
+}} {...props} />
+const Item = props => <Div css={{
   float: 'left',
   height: '100%',
   minHeight: 1,
-  ...style
 }} {...props} />;
 
 export default class Swipeable extends Component {
-  surface: Node | null
+  container: Node | null
   state = {
   index: 0,
     distX: 0,
@@ -29,23 +37,23 @@ export default class Swipeable extends Component {
   }
 
   componentDidMount() {
-    this.surface = findDOMNode(this);
+    this.container = findDOMNode(this);
 
-    this.surface.addEventListener('touchstart', this.touchStart, false);
-    this.surface.addEventListener('touchmove', this.touchMove, false);
-    this.surface.addEventListener('touchend', this.touchEnd, false);
+    this.container.addEventListener('touchstart', this.touchStart, false);
+    this.container.addEventListener('touchmove', this.touchMove, false);
+    this.container.addEventListener('touchend', this.touchEnd, false);
 
     this.init();
   }
   componentWillUnmount() {
-    this.surface.removeEventListener('touchstart', this.touchStart, false);
-    this.surface.removeEventListener('touchmove', this.touchMove, false);
-    this.surface.removeEventListener('touchend', this.touchEnd, false);
+    this.container.removeEventListener('touchstart', this.touchStart, false);
+    this.container.removeEventListener('touchmove', this.touchMove, false);
+    this.container.removeEventListener('touchend', this.touchEnd, false);
   }
 
   init = () => {
     const frameCount = Children.count(this.props.children);
-    const frameWidth = this.surface.clientWidth;
+    const frameWidth = this.container.clientWidth;
     this.setState({ frameCount, frameWidth });
   }
 
@@ -76,7 +84,7 @@ export default class Swipeable extends Component {
   }
   touchEnd = (event) => {
     event.preventDefault();
-    const { startTime, startX, startY } = this.state;
+    const { index, frameWidth, startTime, startX, startY } = this.state;
     const { onSwipeLeft, onSwipeRight } = this.props;
     const callback = { left: onSwipeLeft, right: onSwipeRight}
     const touchobj = event.changedTouches[0];
@@ -86,43 +94,43 @@ export default class Swipeable extends Component {
     const elapsedTime = new Date().getTime() - startTime // get time elapsed
     let direction;
 
-    if (elapsedTime <= ALLOWED_TIME){ // first condition for awipe met
-        if (Math.abs(distX) >= THRESHOLD && Math.abs(distY) <= RESTRAINT){ // 2nd condition for horizontal swipe met
-            direction = (distX < 0)? 'left' : 'right' // if dist traveled is negative, it indicates left swipe
-        }
-        // else if (Math.abs(distY) >= THRESHOLD && Math.abs(distX) <= RESTRAINT){ // 2nd condition for vertical swipe met
-        //     direction = (distY < 0)? 'up' : 'down' // if dist traveled is negative, it indicates up swipe
-        // }
-    }
+    const TRAVEL = index * frameWidth * -1;
 
+    // ensure adequate distance travelled, along ONLY the correct axis
+    if (Math.abs(distX) >= THRESHOLD && Math.abs(distY) <= RESTRAINT){
+        console.log(distX, TRAVEL);
+        direction = (distX < TRAVEL)? 'left' : 'right' // if dist traveled is negative, it indicates left swipe
+    }
+    // else if (Math.abs(distY) >= THRESHOLD && Math.abs(distX) <= RESTRAINT){
+    //     direction = (distY < 0)? 'up' : 'down' // if dist traveled is negative, it indicates up swipe
+    // }
 
     if (direction && callback[direction]) {
       callback[direction](this.state);
     }
-    this.setState({ distX, distY, elapsedTime, direction }, () => {
-      this.swipeEnd(direction);
-    });
+
+    // double set state to ensure "transition" property is available
+    this.setState({
+      direction,
+      distX,
+      distY,
+      elapsedTime,
+      isAnim: true,
+    }, this.swipeEnd);
   }
-  swipeEnd = (direction) => {
-  if (this.state.isAnim) return;
+  swipeEnd = () => {
+    const { elapsedTime, direction, frameCount, frameWidth } = this.state;
+    let index = this.state.index;
+    const max = frameCount - 1;
 
-    const { frameCount, frameWidth } = this.state;
+    if (direction === 'left') Math.min(max, ++index);
+    if (direction === 'right') Math.max(0, --index);
 
-    this.setState({ isAnim: true }, () => {
-  		this.setState(state => {
-  			let index = state.index;
-        const max = frameCount - 1;
+    const distX = (index * frameWidth) * -1;
 
-        if (direction === 'left') Math.min(max, ++index);
-        if (direction === 'right') Math.max(0, --index);
+    console.log('swipeEnd', direction, index, distX);
 
-        const distX = (index * frameWidth) * -1;
-
-        console.log('swipeEnd', direction, index, distX);
-
-  			return { distX, index }
-  		});
-    });
+    this.setState({ distX, index });
   }
 
   render() {
@@ -132,8 +140,8 @@ export default class Swipeable extends Component {
   const transition = isAnim ? { transition: 'transform 500ms ease' } : {};
 
     return (
-      <Surface>
-        <div
+      <Container>
+        <Track
           onTransitionEnd={() => this.setState({ isAnim: false })}
           style={{
             ...transition,
@@ -142,12 +150,12 @@ export default class Swipeable extends Component {
           }}
         >
           {Children.map(children, (child, idx) => (
-            <Frame key={idx} style={{ width: frameWidth }}>
+            <Item key={idx} style={{ width: frameWidth }}>
               {child}
-            </Frame>
+            </Item>
           ))}
-        </div>
-      </Surface>
+        </Track>
+      </Container>
     );
   }
 }
