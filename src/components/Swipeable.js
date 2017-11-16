@@ -6,22 +6,22 @@ const THRESHOLD = 150;
 const RESTRAINT = 100;
 const ALLOWED_TIME = 1000;
 
-const Container = ({ innerRef, ...props }) => <div ref={innerRef} style={{
+const Surface = ({ innerRef, ...props }) => <div ref={innerRef} style={{
   overflow: 'hidden',
-	touchAction: 'pan-y',
+  touchAction: 'pan-y',
   userSelect: 'none',
 }} {...props} />;
 const Frame = ({ innerRef, style, ...props }) => <div ref={innerRef} style={{
-	float: 'left',
-	height: '100%',
-	minHeight: 1,
+  float: 'left',
+  height: '100%',
+  minHeight: 1,
   ...style
 }} {...props} />;
 
 export default class Swipeable extends Component {
   surface: Node | null
   state = {
-		index: 0,
+  index: 0,
     distX: 0,
     distY: 0,
     frameCount: 0,
@@ -45,7 +45,7 @@ export default class Swipeable extends Component {
 
   init = () => {
     const frameCount = Children.count(this.props.children);
-    const frameWidth = this.container.clientWidth;
+    const frameWidth = this.surface.clientWidth;
     this.setState({ frameCount, frameWidth });
   }
 
@@ -104,7 +104,7 @@ export default class Swipeable extends Component {
     });
   }
   swipeEnd = (direction) => {
-		if (this.state.isAnim) return;
+  if (this.state.isAnim) return;
 
     const { frameCount, frameWidth } = this.state;
 
@@ -123,16 +123,16 @@ export default class Swipeable extends Component {
   			return { distX, index }
   		});
     });
-	}
+  }
 
   render() {
     const { children } = this.props;
     const { distX, frameCount, frameWidth, isAnim } = this.state;
 
-		const transition = isAnim ? { transition: 'transform 500ms ease' } : {};
+  const transition = isAnim ? { transition: 'transform 500ms ease' } : {};
 
     return (
-      <Container innerRef={r => this.container = r}>
+      <Surface>
         <div
           onTransitionEnd={() => this.setState({ isAnim: false })}
           style={{
@@ -147,7 +147,7 @@ export default class Swipeable extends Component {
             </Frame>
           ))}
         </div>
-      </Container>
+      </Surface>
     );
   }
 }
